@@ -1,20 +1,14 @@
-﻿using Entidades.DTOs.Imoveis;
-using Entidades.Imoveis.Pai;
-using Microsoft.AspNetCore.Mvc;
+using Entidades.Imoveis;
 
 namespace Entidades.Interfaces.Imoveis;
 
 public interface IImovelRepository
 {
-    Task<ReturnImovelIdDTO> Adicionar([FromBody] Imovel imovel);
+    Task<string> Adicionar(Imovel imovel);
     Task<List<Imovel>> Listar();
-    Task<Imovel> BuscarImovelPorId(string id);
+    Task<Imovel?> BuscarImovelPorId(string id);
     Task<List<Imovel>> BuscarImoveisPorTipo(string tipo);
     Task<List<Imovel>> BuscarImoveisPorTipoServico(string tipoServico);
-    Task<List<string>> BuscarURLsImagensPorId(string id);
-    Task Editar(Imovel imovel);
-    Task Remover(string id);
-    Task InicializarImoveisPreDefinidos();
-    Task<ReturnPrecificadorImovelDTO> PrecificarImovel(PrecificadorImovelDTO imovel);
-    Imovel ReturnTipoImovel(Imovel imovel);
+    Task<bool> Editar(Imovel imovel);
+    Task<bool> Remover(string id);
 }

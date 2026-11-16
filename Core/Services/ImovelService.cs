@@ -1,109 +1,87 @@
-﻿using CloudinaryDotNet.Actions;
-using CloudinaryDotNet;
 using Entidades.DTOs.Imoveis;
-using Entidades.Imoveis.Pai;
+using Entidades.Imoveis;
 using Entidades.Interfaces.Imoveis;
+using Entidades.Interfaces.Servicos;
 using Microsoft.AspNetCore.Http;
 
 namespace Core.Services;
 
 public class ImovelService : IImovelService
 {
-    private readonly IImovelRepository _Repository;
-    private readonly Cloudinary _Cloudinary;
+    private readonly IImovelRepository _repository;
+    private readonly IArmazenamentoImagens _armazenamento;
 
-    public ImovelService(IImovelRepository imovelRepository, Cloudinary cloudinary)
-	{
-        _Repository = imovelRepository;
-        _Cloudinary = cloudinary;
+    public ImovelService(IImovelRepository repository, IArmazenamentoImagens armazenamento)
+    {
+        _repository = repository;
+        _armazenamento = armazenamento;
     }
 
     public async Task<ReturnImovelIdDTO> Adicionar(Imovel imovel)
     {
-        return await _Repository.Adicionar(imovel);
+        imovel.URLsImagens ??= new List<string>();
+        imovel.AreasComuns ??= new List<string>();
+
+        var id = await _repository.Adicionar(imovel);
+        return new ReturnImovelIdDTO { Id = id };
     }
 
-    public async Task<string> UploadImage(IFormFile imagem, string imovelId)
+    public async Task<string?> UploadImage(IFormFile imagem, string imovelId)
     {
-        Imovel imovel = BuscarImovelPorId(imovelId).Result;
+        var imovel = await _repository.BuscarImovelPorId(imovelId);
+        if (imovel is null) return null;
 
-        string fileName = imagem.FileName;
+        var url = await _armazenamento.Salvar(imagem);
+        if (url is null) return null;
 
-        byte[] imagemBytes;
-        using (var memoryStream = new MemoryStream())
-        {
-            await imagem.CopyToAsync(memoryStream);
-            imagemBytes = memoryStream.ToArray();
-        }
+        imovel.URLsImagens.Add(url);
+        await _repository.Editar(imovel);
 
-        using (var memoryStream = new MemoryStream(imagemBytes))
-        {
-            var uploadParams = new ImageUploadParams()
-            {
-                File = new FileDescription(fileName, memoryStream)
-            };
-            var uploadResult = await _Cloudinary.UploadAsync(uploadParams);
-
-            if (uploadResult.StatusCode != System.Net.HttpStatusCode.OK)
-            {
-                return "Erro ao carregar a imagem.";
-            }
-
-            imovel.URLsImagens.Add(uploadResult.SecureUrl.ToString());
-
-            await Editar(imovel);
-
-            return uploadResult.SecureUrl.ToString();
-        }
+        return url;
     }
 
-    public async Task<List<Imovel>> Listar()
-    {
-        return await _Repository.Listar();
-    }
+    public Task<List<Imovel>> Listar() => _repository.Listar();
 
-    public async Task<Imovel> BuscarImovelPorId(string id)
-    {
-        return await _Repository.BuscarImovelPorId(id);
-    }
+    public Task<Imovel?> BuscarImovelPorId(string id) => _repository.BuscarImovelPorId(id);
 
-    public async Task<List<Imovel>> BuscarImoveisPorTipo(string tipo)
-    {
-        return await _Repository.BuscarImoveisPorTipo(tipo);
-    }
+    public Task<List<Imovel>> BuscarImoveisPorTipo(string tipo) => _repository.BuscarImoveisPorTipo(tipo);
 
-    public async Task<List<Imovel>> BuscarImoveisPorTipoServico(string tipoServico)
-    {
-        return await _Repository.BuscarImoveisPorTipoServico(tipoServico);
-    }
+    public Task<List<Imovel>> BuscarImoveisPorTipoServico(string tipoServico) =>
+        _repository.BuscarImoveisPorTipoServico(tipoServico);
 
-    public async Task<List<string>> BuscarURLsImagensPorId(string id)
-    {
-        return await _Repository.BuscarURLsImagensPorId(id);
-    }
+    public async Task<List<string>?> BuscarURLsImagensPorId(string id) =>
+        (await _repository.BuscarImovelPorId(id))?.URLsImagens;
 
-    public async Task Editar(Imovel imovelEdit)
-    {
-        _Repository.Editar(imovelEdit);
-    }
+    public Task<bool> Editar(Imovel imovel) => _repository.Editar(imovel);
 
-    public async Task Remover(string id)
-    {
-        _Repository.Remover(id);
-    }
+    public Task<bool> Remover(string id) => _repository.Remover(id);
 
-    public async Task InicializarImoveisPreDefinidos()
+    public ReturnPrecificadorImovelDTO PrecificarImovel(PrecificadorImovelDTO imovel)
     {
-        _Repository.InicializarImoveisPreDefinidos();
-    }
+        const double valorBase = 80000;
 
-    public async Task<ReturnPrecificadorImovelDTO> PrecificarImovel(PrecificadorImovelDTO imovel)
-    {
-        return await _Repository.PrecificarImovel(imovel);
-    }
+        var ehVenda = string.Equals(imovel.VendaOuAluguel, "venda", StringComparison.OrdinalIgnoreCase);
+        var ehApartamento = string.Equals(imovel.TipoImovel, "apartamento", StringComparison.OrdinalIgnoreCase);
 
-    public Imovel ReturnTipoImovel(Imovel imovel)
-    {
-        return _Repository.ReturnTipoImovel(imovel);
+        double coefVenda = ehVenda ? 1.0 : 0.79;
+        double coefNovo = imovel.Novo ? 1.2 : 1.0;
+        double coefTipo = ehApartamento ? 1.0 : 1.2;
+        double coefQuartos = 1.04101;
+        double coefBanheiros = 1.0209;
+        double coefVagas = 1.01099;
+        double coefArea = 1.1;
+        double coefAreasComuns = 1.0108;
+
+        var preco = valorBase *
+                    coefVenda *
+                    coefNovo *
+                    coefTipo *
+                    Math.Pow(coefQuartos, imovel.Quartos) *
+                    Math.Pow(coefBanheiros, imovel.Banheiros) *
+                    Math.Pow(coefVagas, imovel.Vagas) *
+                    Math.Pow(coefArea, imovel.AreaM2 / 50) *
+                    Math.Pow(coefAreasComuns, imovel.AreasComuns?.Count ?? 0);
+
+        return new ReturnPrecificadorImovelDTO { Preco = Math.Round(preco, 2) };
     }
 }

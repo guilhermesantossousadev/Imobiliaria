@@ -1,6 +1,6 @@
-﻿namespace Entidades.DTOs.Imoveis;
+namespace Entidades.DTOs.Imoveis;
 
 public class ReturnImovelIdDTO
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 }

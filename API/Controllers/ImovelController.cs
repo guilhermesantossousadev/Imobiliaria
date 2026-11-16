@@ -1,92 +1,67 @@
-﻿using AutoMapper;
 using Entidades.DTOs.Imoveis;
-using Entidades.Imoveis.Pai;
+using Entidades.Imoveis;
 using Entidades.Interfaces.Imoveis;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
 
 [ApiController]
-[Route("[controller]")] 
+[Route("[controller]")]
 public class ImovelController : ControllerBase
 {
-    private readonly IImovelService _Service;
-    private readonly IMapper _Mapper;
+    private readonly IImovelService _service;
 
-    public ImovelController(IImovelService imovelService, IMapper mapper)
+    public ImovelController(IImovelService service)
     {
-        _Service = imovelService;
-        _Mapper = mapper;
+        _service = service;
     }
 
     [HttpPost("AdicionarImovel")]
-    public async Task<ReturnImovelIdDTO> Adicionar(Imovel imovel)
-    {
-        return await _Service.Adicionar(ReturnTipoImovel(imovel));
-    }
+    public async Task<ReturnImovelIdDTO> Adicionar(Imovel imovel) => await _service.Adicionar(imovel);
 
     [HttpPut("UploadImage")]
-    public async Task<string> UploadImage(IFormFile imagem, [FromQuery] string imovelId)
+    public async Task<IActionResult> UploadImage(IFormFile imagem, [FromQuery] string imovelId)
     {
-        return await _Service.UploadImage(imagem, imovelId);
+        var url = await _service.UploadImage(imagem, imovelId);
+
+        return url is null
+            ? BadRequest(new { mensagem = "Imóvel não encontrado ou imagem inválida (jpg, png, webp, gif até 5 MB)." })
+            : Ok(url);
     }
 
     [HttpGet("ListarImoveis")]
-    public async Task<List<Imovel>> Listar()
-    {
-        return await _Service.Listar();
-    }
+    public async Task<List<Imovel>> Listar() => await _service.Listar();
 
     [HttpGet("ListarImovelPorId")]
-    public async Task<Imovel> BuscarImovelPorId(string id)
+    public async Task<IActionResult> BuscarImovelPorId(string id)
     {
-        return await _Service.BuscarImovelPorId(id);
+        var imovel = await _service.BuscarImovelPorId(id);
+        return imovel is null ? NotFound() : Ok(imovel);
     }
 
     [HttpGet("ListarImoveisPorTipo")]
-    public async Task<List<Imovel>> BuscarImoveisPorTipo(string tipo)
-    {
-        return await _Service.BuscarImoveisPorTipo(tipo);
-    }
+    public async Task<List<Imovel>> BuscarImoveisPorTipo(string tipo) => await _service.BuscarImoveisPorTipo(tipo);
 
     [HttpGet("ListarImoveisPorTipoServico")]
-    public async Task<List<Imovel>> BuscarImoveisPorTipoServico(string tipoServico)
-    {
-        return await _Service.BuscarImoveisPorTipoServico(tipoServico);
-    }
+    public async Task<List<Imovel>> BuscarImoveisPorTipoServico(string tipoServico) =>
+        await _service.BuscarImoveisPorTipoServico(tipoServico);
 
     [HttpGet("ListarURLsImagensPorId")]
-    public async Task<List<string>> BuscarURLsImagensPorId(string id)
+    public async Task<IActionResult> BuscarURLsImagensPorId(string id)
     {
-        return await _Service.BuscarURLsImagensPorId(id);
+        var urls = await _service.BuscarURLsImagensPorId(id);
+        return urls is null ? NotFound() : Ok(urls);
     }
 
     [HttpPut("EditarImovel")]
-    public async Task Editar(Imovel imovelEdit)
-    {
-        _Service.Editar(ReturnTipoImovel(imovelEdit));
-    }
+    public async Task<IActionResult> Editar(Imovel imovelEdit) =>
+        await _service.Editar(imovelEdit) ? NoContent() : NotFound();
 
     [HttpDelete("RemoverImovel")]
-    public async Task Remover(string id)
-    {
-        _Service.Remover(id);
-    }
-
-    [HttpPost("InicializarImoveis")]
-    public async Task InicializarImoveisPreDefinidos()
-    {
-        _Service.InicializarImoveisPreDefinidos();
-    }
+    public async Task<IActionResult> Remover(string id) =>
+        await _service.Remover(id) ? NoContent() : NotFound();
 
     [HttpPost("PrecificarImovel")]
-    public async Task<ReturnPrecificadorImovelDTO> PrecificarImovel(PrecificadorImovelDTO imovel)
-    {
-        return await _Service.PrecificarImovel(imovel);
-    }
-
-    private Imovel ReturnTipoImovel(Imovel imovel)
-    {
-        return _Service.ReturnTipoImovel(imovel);
-    }
+    public ReturnPrecificadorImovelDTO PrecificarImovel(PrecificadorImovelDTO imovel) =>
+        _service.PrecificarImovel(imovel);
 }

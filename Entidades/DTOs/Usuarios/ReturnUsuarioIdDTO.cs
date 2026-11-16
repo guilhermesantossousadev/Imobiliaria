@@ -1,4 +1,4 @@
-﻿namespace Entidades.DTOs.Usuarios;
+namespace Entidades.DTOs.Usuarios;
 
 public class ReturnUsuarioIdDTO
 {

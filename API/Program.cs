@@ -1,60 +1,103 @@
-using Core.DataBase.CloudinaryConfig;
-using Core.DataBase.MongoDb.Extensoes;
-using Core.DataBase.SQLite;
+using Core.Armazenamento;
+using Core.Dados;
 using Core.Repositorios;
 using Core.Services;
-using Entidades.DTOs;
+using CloudinaryDotNet;
 using Entidades.Interfaces.Imoveis;
+using Entidades.Interfaces.Mensagens;
+using Entidades.Interfaces.Servicos;
 using Entidades.Interfaces.Usuarios;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// --- Banco SQLite (arquivo em API/App_Data por padr√£o) ---
+var pastaDados = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+Directory.CreateDirectory(pastaDados);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+    connectionString = $"Data Source={Path.Combine(pastaDados, "imobiliaria.db")}";
 
-builder.Services.AddAutoMapper(typeof(MappingProfile));
+builder.Services.AddSingleton(new ConexaoSqlite(connectionString));
+builder.Services.AddSingleton<InicializadorDb>();
 
-// ConfiguraÁ„o do CORS
-builder.Services.AddCors(options =>
+// --- Armazenamento de imagens: Cloudinary se configurado, sen√£o pasta local ---
+var pastaUploads = Path.Combine(pastaDados, "uploads");
+builder.Services.AddHttpContextAccessor();
+
+var cloudinaryCfg = builder.Configuration.GetSection("Cloudinary");
+var cloudName = cloudinaryCfg["CloudName"];
+var apiKey = cloudinaryCfg["ApiKey"];
+var apiSecret = cloudinaryCfg["ApiSecret"];
+
+if (!string.IsNullOrWhiteSpace(cloudName) && !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiSecret))
 {
-    options.AddPolicy("PermitirTudo",
-        builder =>
-        {
-            builder.AllowAnyOrigin()
-                   .AllowAnyMethod()
-                   .AllowAnyHeader();
-        });
-});
+    builder.Services.AddSingleton(new Cloudinary(new Account(cloudName, apiKey, apiSecret)));
+    builder.Services.AddSingleton<IArmazenamentoImagens, ArmazenamentoCloudinary>();
+}
+else
+{
+    builder.Services.AddSingleton<IArmazenamentoImagens>(sp =>
+        new ArmazenamentoLocal(pastaUploads, sp.GetRequiredService<IHttpContextAccessor>()));
+}
 
-ExtensoesProgramMongo.AddConfiguracaoMongo(builder.Services, builder.Configuration);
-
-Startup.ConfigureServices(builder.Configuration, builder.Services);
-
-InicializadorDb.Inicializar();
-
+// --- Aplica√ß√£o ---
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 builder.Services.AddScoped<IImovelRepository, ImovelRepository>();
-
+builder.Services.AddScoped<IMensagemRepository, MensagemRepository>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddScoped<IImovelService, ImovelService>();
 
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var origens = builder.Configuration.GetSection("Cors:Origens").Get<string[]>()
+              ?? new[] { "http://localhost:5173" };
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Front", policy =>
+        policy.WithOrigins(origens).AllowAnyMethod().AllowAnyHeader());
+});
+
 var app = builder.Build();
+
+// --- Inicializa√ß√£o do banco e dados de exemplo ---
+app.Services.GetRequiredService<InicializadorDb>().Inicializar();
+
+if (app.Configuration.GetValue("Seed:ImoveisExemplo", true))
+{
+    using var scope = app.Services.CreateScope();
+    var repo = scope.ServiceProvider.GetRequiredService<IImovelRepository>();
+
+    if ((await repo.Listar()).Count == 0)
+    {
+        foreach (var imovel in ImoveisExemplo.Obter())
+            await repo.Adicionar(imovel);
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHttpsRedirection();
+}
 
-// Permite requisiÁıes de qualquer origem (CORS)
-app.UseCors("PermitirTudo");
+Directory.CreateDirectory(pastaUploads);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(pastaUploads),
+    RequestPath = "/uploads"
+});
 
-app.UseHttpsRedirection();
-
+app.UseCors("Front");
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

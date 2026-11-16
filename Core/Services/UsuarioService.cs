@@ -1,98 +1,118 @@
-﻿using CloudinaryDotNet.Actions;
-using CloudinaryDotNet;
 using Entidades.DTOs.Usuarios;
+using Entidades.Interfaces.Servicos;
 using Entidades.Interfaces.Usuarios;
 using Entidades.Usuarios;
 using Microsoft.AspNetCore.Http;
-using System.Drawing;
-using static System.Net.Mime.MediaTypeNames;
-using MongoDB.Driver.Core.Configuration;
-using System.Data.SQLite;
+using Core.Dados;
 
 namespace Core.Services;
 
 public class UsuarioService : IUsuarioService
 {
-    private readonly IUsuarioRepository _Repository;
-    private readonly Cloudinary _Cloudinary;
+    private readonly IUsuarioRepository _repository;
+    private readonly IArmazenamentoImagens _armazenamento;
 
-    public UsuarioService(IUsuarioRepository usuarioRepository, Cloudinary cloudinary)
+    public UsuarioService(IUsuarioRepository repository, IArmazenamentoImagens armazenamento)
     {
-        _Repository = usuarioRepository;
-        _Cloudinary = cloudinary;
+        _repository = repository;
+        _armazenamento = armazenamento;
     }
 
-    public ReturnUsuarioIdDTO Adicionar(Usuario usuario)
+    public ReturnUsuarioIdDTO? Adicionar(CreateUsuarioDTO dto)
     {
-        return _Repository.Adicionar(usuario);
-    }
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+            return null;
 
-    public async Task<string> UploadImage(IFormFile imagem, int usuarioId)
-    {
-        Usuario usuario = BuscarUsuarioPorId(usuarioId);
+        if (_repository.BuscarPorUsername(dto.Username) is not null)
+            return null;
 
-        string fileName = imagem.FileName;
-
-        byte[] imagemBytes;
-        using (var memoryStream = new MemoryStream())
+        var usuario = new Usuario
         {
-            await imagem.CopyToAsync(memoryStream);
-            imagemBytes = memoryStream.ToArray();
-        }
+            Nome = dto.Nome,
+            Idade = dto.Idade,
+            Genero = dto.Genero,
+            CEP = dto.CEP,
+            Rua = dto.Rua,
+            Numero = dto.Numero,
+            Bairro = dto.Bairro,
+            Cidade = dto.Cidade,
+            UnidadeFederativa = dto.UnidadeFederativa,
+            Endereco = $"{dto.Rua}, {dto.Numero}, {dto.Bairro}, {dto.Cidade}, {dto.UnidadeFederativa} - {dto.CEP}",
+            Identificacao = dto.Identificacao,
+            Username = dto.Username,
+            Password = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            Tipo = "Usuario",
+            FotoDePerfilURL = InicializadorDb.FotoPadraoUsuario
+        };
 
-        using (var memoryStream = new MemoryStream(imagemBytes))
-        {
-            var uploadParams = new ImageUploadParams()
-            {
-                File = new FileDescription(fileName, memoryStream)
-            };
-            var uploadResult = await _Cloudinary.UploadAsync(uploadParams);
-
-            if (uploadResult.StatusCode != System.Net.HttpStatusCode.OK)
-            {
-                return "Erro ao carregar a imagem.";
-            }
-
-            usuario.FotoDePerfilURL = uploadResult.SecureUrl.ToString();
-
-            Editar(usuario);
-
-            return uploadResult.SecureUrl.ToString();
-        }
+        return new ReturnUsuarioIdDTO { Id = _repository.Adicionar(usuario) };
     }
 
-    public Usuario LogarUsuario(LoginUsuarioDTO usuarioLogin)
+    public async Task<string?> UploadImage(IFormFile imagem, int usuarioId)
     {
-        return _Repository.LogarUsuario(usuarioLogin);
+        if (_repository.BuscarUsuarioPorId(usuarioId) is null) return null;
+
+        var url = await _armazenamento.Salvar(imagem);
+        if (url is null) return null;
+
+        _repository.EditarFoto(usuarioId, url);
+        return url;
     }
 
-    public List<Usuario> Listar()
+    public UsuarioDTO? LogarUsuario(LoginUsuarioDTO login)
     {
-        return _Repository.Listar();
+        var usuario = _repository.BuscarPorUsername(login.Username);
+
+        if (usuario is null || !BCrypt.Net.BCrypt.Verify(login.Password, usuario.Password))
+            return null;
+
+        return UsuarioDTO.De(usuario);
     }
 
-    public Usuario BuscarUsuarioPorId(int id)
+    public List<UsuarioDTO> Listar() => _repository.Listar().Select(UsuarioDTO.De).ToList();
+
+    public UsuarioDTO? BuscarUsuarioPorId(int id)
     {
-        return _Repository.BuscarUsuarioPorId(id);
+        var usuario = _repository.BuscarUsuarioPorId(id);
+        return usuario is null ? null : UsuarioDTO.De(usuario);
     }
 
-    public void Editar(Usuario usuarioEdit)
+    public bool Editar(UsuarioDTO dto)
     {
-        _Repository.Editar(usuarioEdit);
+        var usuario = _repository.BuscarUsuarioPorId(dto.Id);
+        if (usuario is null) return false;
+
+        usuario.Nome = dto.Nome;
+        usuario.Idade = dto.Idade;
+        usuario.Genero = dto.Genero;
+        usuario.CEP = dto.CEP;
+        usuario.Rua = dto.Rua;
+        usuario.Numero = dto.Numero;
+        usuario.Bairro = dto.Bairro;
+        usuario.Cidade = dto.Cidade;
+        usuario.UnidadeFederativa = dto.UnidadeFederativa;
+        usuario.Endereco = $"{dto.Rua}, {dto.Numero}, {dto.Bairro}, {dto.Cidade}, {dto.UnidadeFederativa} - {dto.CEP}";
+        usuario.Identificacao = dto.Identificacao;
+
+        return _repository.Editar(usuario);
     }
 
-    public void EditarUsername(int id, string username)
+    public bool EditarUsername(int id, string username)
     {
-        _Repository.EditarUsername(id, username);
+        if (string.IsNullOrWhiteSpace(username)) return false;
+
+        var existente = _repository.BuscarPorUsername(username);
+        if (existente is not null && existente.Id != id) return false;
+
+        return _repository.EditarUsername(id, username);
     }
 
-    public void EditarSenha(int id, string senha)
+    public bool EditarSenha(int id, string senha)
     {
-        _Repository.EditarSenha(id, senha);
+        if (string.IsNullOrWhiteSpace(senha)) return false;
+
+        return _repository.EditarSenha(id, BCrypt.Net.BCrypt.HashPassword(senha));
     }
 
-    public void Remover(int id)
-    {
-        _Repository.Remover(id);
-    }
+    public bool Remover(int id) => _repository.Remover(id);
 }

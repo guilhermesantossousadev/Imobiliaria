@@ -1,4 +1,4 @@
-﻿namespace Entidades.DTOs.Imoveis;
+namespace Entidades.DTOs.Imoveis;
 
 public class ReturnPrecificadorImovelDTO
 {

@@ -1,9 +1,5 @@
-﻿using AutoMapper;
-using CloudinaryDotNet.Actions;
-using CloudinaryDotNet;
 using Entidades.DTOs.Usuarios;
 using Entidades.Interfaces.Usuarios;
-using Entidades.Usuarios;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -12,74 +8,69 @@ namespace API.Controllers;
 [Route("[controller]")]
 public class UsuarioController : ControllerBase
 {
-    private readonly IUsuarioService _Service;
-    private readonly IMapper _Mapper;
+    private readonly IUsuarioService _service;
 
-    public UsuarioController(IUsuarioService usuarioService, IMapper mapper)
+    public UsuarioController(IUsuarioService service)
     {
-        _Service = usuarioService;
-        _Mapper = mapper;
+        _service = service;
     }
 
     [HttpPost("AdicionarUsuario")]
-    public ReturnUsuarioIdDTO Adicionar(CreateUsuarioDTO usuarioDTO)
+    public IActionResult Adicionar(CreateUsuarioDTO usuarioDTO)
     {
-        Usuario usuario = _Mapper.Map<Usuario>(usuarioDTO);
-        usuario.Endereco = $"{usuarioDTO.Rua}, {usuarioDTO.Numero}, {usuarioDTO.Bairro}, {usuarioDTO.Cidade}, {usuarioDTO.UnidadeFederativa} - {usuarioDTO.CEP}";
-        usuario.Tipo = "Usuario";
-        usuario.FotoDePerfilURL = "https://res.cloudinary.com/fredmarques/image/upload/v1734056424/ImagemUsuario_cnlcqp.png";
+        var resultado = _service.Adicionar(usuarioDTO);
 
-        return _Service.Adicionar(usuario);
+        return resultado is null
+            ? Conflict(new { mensagem = "Username inválido ou já em uso." })
+            : Ok(resultado);
     }
 
     [HttpPut("UploadImage")]
-    public async Task<string> UploadImage(IFormFile imagem, [FromQuery] int usuarioId)
+    public async Task<IActionResult> UploadImage(IFormFile imagem, [FromQuery] int usuarioId)
     {
-        return await _Service.UploadImage(imagem, usuarioId);
+        var url = await _service.UploadImage(imagem, usuarioId);
+
+        return url is null
+            ? BadRequest(new { mensagem = "Usuário não encontrado ou imagem inválida (jpg, png, webp, gif até 5 MB)." })
+            : Ok(url);
     }
 
-
     [HttpPost("LogarUsuario")]
-    public Usuario LogarUsuario(LoginUsuarioDTO usuarioLogin)
+    public IActionResult LogarUsuario(LoginUsuarioDTO usuarioLogin)
     {
-        return _Service.LogarUsuario(usuarioLogin);
+        var usuario = _service.LogarUsuario(usuarioLogin);
+
+        return usuario is null
+            ? Unauthorized(new { mensagem = "Usuário ou senha inválidos." })
+            : Ok(usuario);
     }
 
     [HttpGet("ListarUsuarios")]
-    public List<Usuario> Listar()
-    {
-        return _Service.Listar();
-    }
+    public List<UsuarioDTO> Listar() => _service.Listar();
 
     [HttpGet("ListarUsuarioPorId")]
-    public Usuario BuscarUsuarioPorId(int id)
+    public IActionResult BuscarUsuarioPorId(int id)
     {
-        return _Service.BuscarUsuarioPorId(id);
+        var usuario = _service.BuscarUsuarioPorId(id);
+        return usuario is null ? NotFound() : Ok(usuario);
     }
 
     [HttpPut("EditarUsuario")]
-    public void Editar(Usuario usuarioEdit)
-    {
-        usuarioEdit.Tipo = "Usuario";
-
-        _Service.Editar(usuarioEdit);
-    }
+    public IActionResult Editar(UsuarioDTO usuarioEdit) =>
+        _service.Editar(usuarioEdit) ? NoContent() : NotFound();
 
     [HttpPut("EditarUsername")]
-    public void EditarUsername(UpdateUsuarioDTO usuarioEdit)
-    {
-        _Service.EditarUsername(usuarioEdit.Id, usuarioEdit.Valor);
-    }
+    public IActionResult EditarUsername(UpdateUsuarioDTO usuarioEdit) =>
+        _service.EditarUsername(usuarioEdit.Id, usuarioEdit.Valor)
+            ? NoContent()
+            : BadRequest(new { mensagem = "Username inválido, já em uso ou usuário não encontrado." });
 
     [HttpPut("EditarSenha")]
-    public void EditarSenha(UpdateUsuarioDTO usuarioEdit)
-    {
-        _Service.EditarSenha(usuarioEdit.Id, usuarioEdit.Valor);
-    }
+    public IActionResult EditarSenha(UpdateUsuarioDTO usuarioEdit) =>
+        _service.EditarSenha(usuarioEdit.Id, usuarioEdit.Valor)
+            ? NoContent()
+            : BadRequest(new { mensagem = "Senha inválida ou usuário não encontrado." });
 
     [HttpDelete("RemoverUsuario")]
-    public void Remover(int id)
-    {
-        _Service.Remover(id);
-    }
+    public IActionResult Remover(int id) => _service.Remover(id) ? NoContent() : NotFound();
 }
