@@ -1,0 +1,30 @@
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.log
+TestResults/
+
+# Dados locais da API (banco SQLite e uploads)
+API/App_Data/
+*.db
+*.db-shm
+*.db-wal
+
+# Configuração local e segredos
+appsettings.Local.json
+appsettings.*.local.json
+.env
+.env.local
+secrets.json
+
+# Front-end
+node_modules/
+dist/
+
+# Sistema / editores
+.DS_Store
+.idea/
+.vscode/

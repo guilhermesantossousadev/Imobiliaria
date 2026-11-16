@@ -1,0 +1,71 @@
+/* ==========================================================================
+   Design tokens — Sweet Home
+   Identidade: casario colonial mineiro (azul de janela, ocre de fachada,
+   verde de porta e cal). Toda cor, medida e sombra do projeto vem daqui.
+   ========================================================================== */
+:root {
+  /* Marca */
+  --cor-primaria: #1b3fa0;        /* azul de janela */
+  --cor-primaria-hover: #143082;
+  --cor-primaria-suave: #e7ecf9;
+  --cor-destaque: #e0a526;        /* ocre de fachada */
+  --cor-destaque-hover: #c98f14;
+  --cor-destaque-suave: #fbf0d6;
+  --cor-verde: #1f6b54;           /* verde de porta */
+  --cor-verde-suave: #e0efe9;
+  --cor-ceu: #9db4e8;
+  --cor-tinta: #101a33;           /* telhados, títulos, rodapé */
+
+  /* Neutros */
+  --cor-fundo: #f5f6f2;           /* cal */
+  --cor-superficie: #ffffff;
+  --cor-borda: #d6dacd;
+  --cor-texto: #1a2233;
+  --cor-texto-suave: #566073;
+  --cor-texto-inverso: #ffffff;
+
+  /* Feedback */
+  --cor-sucesso: #1f6b54;
+  --cor-sucesso-fundo: #e0efe9;
+  --cor-erro: #b3372f;
+  --cor-erro-fundo: #fbe9e7;
+  --cor-info: #1b3fa0;
+  --cor-info-fundo: #e7ecf9;
+
+  /* Tipografia */
+  --fonte-titulo: 'Bricolage Grotesque', 'Hanken Grotesk', system-ui, sans-serif;
+  --fonte: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --texto-xs: 0.78rem;
+  --texto-sm: 0.9rem;
+  --texto-md: 1rem;
+  --texto-lg: 1.2rem;
+  --texto-xl: 1.6rem;
+  --texto-2xl: 2.2rem;
+  --texto-3xl: clamp(2.5rem, 5.5vw + 0.5rem, 4.75rem);
+
+  /* Espaçamento (escala de 4px) */
+  --espaco-1: 0.25rem;
+  --espaco-2: 0.5rem;
+  --espaco-3: 0.75rem;
+  --espaco-4: 1rem;
+  --espaco-5: 1.5rem;
+  --espaco-6: 2rem;
+  --espaco-7: 3rem;
+  --espaco-8: 4.5rem;
+
+  /* Forma: cantos pequenos, como placas e esquadrias */
+  --raio-sm: 4px;
+  --raio-md: 6px;
+  --raio-lg: 8px;
+
+  /* Elevação: quase nenhuma. A "placa" usa sombra dura. */
+  --sombra-sm: none;
+  --sombra-md: 0 6px 18px rgba(16, 26, 51, 0.1);
+  --sombra-lg: 0 18px 40px rgba(16, 26, 51, 0.22);
+  --sombra-placa: 6px 6px 0 var(--cor-destaque);
+
+  /* Layout */
+  --largura-max: 1180px;
+  --altura-header: 68px;
+  --transicao: 150ms ease;
+}
